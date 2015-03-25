@@ -1,0 +1,30 @@
+# Default config
+
+server:
+  port: 3030
+
+# `appData` is a hash of values that will be set on the `req.rendrApp` (middleware)
+# and `this.app` (models, views, controllers). These are available in both the
+# client and the server.
+appData:
+  someProperty: someValue
+
+# Client ID and client secret are available at https://code.google.com/apis/console
+google:
+  client_id: 852890185516-u5gn6oi4p9rbsga015bcaojbucu4vtub.apps.googleusercontent.com
+  client_secret: SGubUYpp4LmL5PCyDSIPMkMv
+  redirect_host: http://localhost:3030
+  redirect_path: /auth/google/callback
+  scope: https://www.googleapis.com/auth/plus.me
+
+db:
+  host: localhost
+  name: mydb
+  options:
+    server:
+      auto_reconnect: true
+      socketOptions:
+        keepAlive: 1
+
+session:
+  secret: zettaininaishonano
