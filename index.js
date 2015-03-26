@@ -175,7 +175,7 @@ app.get('/', function (req, res) {
       function (list) {
         renderTimeline(req, res,
           list.sort(function (a, b) {
-            return (new Date(a.activity.updated)).getTime() < (new Date(b.activity.updated)).getTime() ? -1 : 1;
+            return (new Date(a.activity.updated)).getTime() > (new Date(b.activity.updated)).getTime() ? -1 : 1;
           })
         );
       },
