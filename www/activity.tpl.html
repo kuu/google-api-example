@@ -1,0 +1,18 @@
+<div>
+  <hr />
+  <h2>{{user.displayName}}</h2>
+  <img src="{{user.image.url}}"></img>
+  <div>
+    <h3>{{activity.title}}</h3>
+    <p>Posted: {{activity.published}}</p>
+    <p>{{{activity.content}}}</p>
+    <div>{{{attachments}}}</div>
+    <p>
+      {{activity.object.replies.totalItems}} comments added,
+      {{activity.object.plusoners.totalItems}} plus1ed,
+      {{activity.object.resharers.totalItems}} shared
+    </p>
+    <div>{{{comments}}}</div>
+    <div>{{{debug}}}</div>
+  </div>
+</div>

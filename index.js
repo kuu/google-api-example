@@ -1,10 +1,13 @@
 'use strict';
 
-var config = require('config'),
+var fs = require('fs'),
+    config = require('config'),
     path = require('path'),
     express = require('express'),
     session = require('express-session'),
-    google = require('googleapis');
+    google = require('googleapis'),
+    Promise = require('bluebird'),
+    Handlebars = require('handlebars');
 
 var app = express(),
     port = process.env.PORT || config.server.port,
@@ -16,7 +19,9 @@ var app = express(),
       config.google.client_id,
       config.google.client_secret,
       config.google.redirect_host + config.google.redirect_path
-    );
+    ),
+    renderActivity = Handlebars.compile(fs.readFileSync(path.join(DOC_ROOT, 'activity.tpl.html'), {encoding: 'utf8'})),
+    renderActivityList = Handlebars.compile(fs.readFileSync(path.join(DOC_ROOT, 'activity-list.tpl.html'), {encoding: 'utf8'}));
 
 app.use(session({
     secret: config.session.secret,
@@ -58,19 +63,126 @@ app.get(config.google.redirect_path, function (req, res) {
   });
 });
 
+function Activity(user, activity) {
+  this.user = user;
+  this.activity = activity;
+  this.comments = [];
+}
+
+Activity.prototype.getCommentCount = function () {
+  return this.activity.object.replies.totalItems;
+};
+
+Activity.prototype.getActivityId = function () {
+  return this.activity.id;
+};
+
+Activity.prototype.addComment = function (comment) {
+  this.comments.push(comment);
+};
+
+function fetchComments(activity) {
+  return new Promise(function (fulfill) {
+    if (activity.getCommentCount === 0) {
+      fulfill(activity);
+      return;
+    }
+
+    plus.comments.list({ activityId: activity.getActivityId(), auth: oauth2Client }, function (err, comments) {
+      if (!err) {
+        comments.items.forEach(function (comment) {
+          activity.addComment(comment);
+        });
+      }
+      fulfill(activity);
+    });
+  });
+}
+
+function fetchActivities(user) {
+  return new Promise(function (fulfill, reject) {
+    plus.activities.list({ userId: user.id, collection: 'public', auth: oauth2Client }, function (err, activities) {
+      if (err) {
+        reject(new Error('activities.list() failed.'));
+        return;
+      }
+      Promise.all(
+        activities.items.map(function (activity) {
+          return fetchComments(new Activity(user, activity));
+        })
+      ).then(function (list) {
+        fulfill(list);
+      });
+    });
+  });
+}
+
+function fetchTimeline() {
+  return new Promise(function (fulfill, reject) {
+    plus.people.list({ userId: 'me', collection: 'visible', auth: oauth2Client }, function (err, people) {
+      if (err) {
+        reject(new Error('people.list() failed.'));
+      } else {
+        Promise.all(
+          people.items.map(function (user) {
+            return fetchActivities(user);
+          })
+        ).then(function (list) {
+          fulfill(
+            list.length ? list.reduce(function (a, b) {
+              return a.concat(b);
+            }) : list
+          );
+        });
+      }
+    });
+  });
+}
+
+function renderComments(list) {
+  return list.map(function (comment) {
+    return '<div><h4>Comment by ' + comment.actor.displayName + '</h4><p>' + comment.object.content + '</p></div>';
+  }).join('');
+}
+
+function renderAttachments(list) {
+  return list.map(function (attachment) {
+    return '<div><h4>' + attachment.displayName + '</h4><p><a href="' + attachment.url + '">' + (attachment.image ? '<img src="' + attachment.image.url + '"></img>' : attachment.content) + '</a></p></div>';
+  }).join('');
+}
+
+function renderTimeline(req, res, list) {
+  res.send(
+    renderActivityList({
+      list: list.map(function (item) {
+        //item.debug = JSON.stringify(item, 2);
+        item.attachments = renderAttachments(item.activity.object.attachments || []);
+        item.comments = renderComments(item.comments || []);
+        return renderActivity(item);
+      }).join('')
+    })
+  );
+}
 
 app.get('/', function (req, res) {
   //console.log('GET /');
 
   if (req.session.loggedIn) {
     // retrieve user profile
-    plus.people.get({ userId: 'me', auth: oauth2Client }, function (err, profile) {
-      if (err) {
-        res.send('Who are you?');
-      } else {
-        res.send('Hello ' + profile.displayName + '!');
+    //plus.people.get({ userId: 'me', auth: oauth2Client }, function (err, profile) {
+    fetchTimeline()
+    .then(
+      function (list) {
+        renderTimeline(req, res,
+          list.sort(function (a, b) {
+            return (new Date(a.activity.updated)).getTime() < (new Date(b.activity.updated)).getTime() ? -1 : 1;
+          })
+        );
+      },
+      function () {
+        res.status(404);
       }
-    });
+    );
   } else {
     res.sendFile(DOC_PATH);
   }

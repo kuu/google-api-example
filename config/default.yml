@@ -15,7 +15,7 @@ google:
   client_secret: SGubUYpp4LmL5PCyDSIPMkMv
   redirect_host: http://localhost:3030
   redirect_path: /auth/google/callback
-  scope: https://www.googleapis.com/auth/plus.me
+  scope: https://www.googleapis.com/auth/plus.login
 
 db:
   host: localhost
